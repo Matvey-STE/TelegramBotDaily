@@ -59,7 +59,7 @@ public class UpdateController {
                 "The file has got. Please wait until it download...");
         setView(sendMessage);
     }
-    private void setView(SendMessage sendMessage) {
+    public void setView(SendMessage sendMessage) {
         telegramBot.sendAnswerMessage(sendMessage);
     }
     private void processPhotoMessage(Update update) {
