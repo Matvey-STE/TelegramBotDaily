@@ -1,13 +1,18 @@
 package com.matveyvs1987.service.Impl;
 
+import com.matveyvs1987.UploadFileException;
 import com.matveyvs1987.dao.RawDataDAO;
+import com.matveyvs1987.entity.AppDocument;
+import com.matveyvs1987.entity.AppPhoto;
 import com.matveyvs1987.entity.RawData;
+import com.matveyvs1987.service.FileService;
 import com.matveyvs1987.service.MainService;
 import com.matveyvs1987.service.ProducerService;
 //todo make sure that all objects in common directory add to git like com.matveyvs1987
 import com.matveyvs1987.dao.AppUserDAO;
 
 import com.matveyvs1987.entity.AppUser;
+import com.matveyvs1987.service.ServiceCommand;
 import lombok.extern.log4j.Log4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -17,7 +22,7 @@ import org.telegram.telegrambots.meta.api.objects.User;
 
 import static com.matveyvs1987.entity.enums.UserState.BASIC_STATE;
 import static com.matveyvs1987.entity.enums.UserState.WAIT_FOR_EMAIL_STATE;
-import static com.matveyvs1987.service.ServiceCommands.*;
+import static com.matveyvs1987.service.ServiceCommand.*;
 
 
 @Service
@@ -26,11 +31,13 @@ public class MainServiceImpl implements MainService {
     private final RawDataDAO rawDataDAO;
     private final ProducerService producerService;
     private final AppUserDAO appUserDAO;
+    private final FileService fileService;
     @Autowired
-    public MainServiceImpl(RawDataDAO rawDataDAO, ProducerService producerService, AppUserDAO appUserDAO) {
+    public MainServiceImpl(RawDataDAO rawDataDAO, ProducerService producerService, AppUserDAO appUserDAO, FileService fileService) {
         this.rawDataDAO = rawDataDAO;
         this.producerService = producerService;
         this.appUserDAO = appUserDAO;
+        this.fileService = fileService;
     }
 
     @Override
@@ -42,7 +49,9 @@ public class MainServiceImpl implements MainService {
         var text = update.getMessage().getText();
         var output = "";
 
-        if (CANCEL.equals(text)){
+        var serviceCommand = ServiceCommand.fromValue(text);
+
+        if (CANCEL.equals(serviceCommand)){
             output = cancelProcess(appUser);
         } else if (BASIC_STATE.equals(userState)){
             output = processServiceCommands(appUser, text);
@@ -64,10 +73,36 @@ public class MainServiceImpl implements MainService {
         if (isNotAllowToSendContent(charId, appUser)){
             return;
         }
-        // todo add save document
-        var answer = "Document download successfully! Link to download : http://test.ru/get-photo/777";
-        sendAnswer(answer,charId);
-
+        try{
+            AppDocument doc = fileService.processDoc(update.getMessage());
+            // todo add link to file
+            var answer = "Document download successfully! " +
+                    "Link to download : http://test.ru/get-photo/777";
+            sendAnswer(answer,charId);
+        } catch (UploadFileException e){
+            log.error(e);
+            String error = "Unfortunately, faile to download file, please try again later.";
+            sendAnswer(error,charId);
+        }
+    }
+    @Override
+    public void processPhotoMessage(Update update) {
+        saveRawData(update);
+        var appUser = findOrSaveAppUser(update);
+        var charId = update.getMessage().getChatId();
+        if (isNotAllowToSendContent(charId, appUser)){
+            return;
+        }
+        try {
+            // todo add link to photo
+            AppPhoto photo = fileService.processPhoto(update.getMessage());
+            var answer = "Picture download successfully! Link to download : http://test.ru/get-photo/777";
+            sendAnswer(answer,charId);
+        } catch (UploadFileException e){
+            log.error(e);
+            String error = "Unfortunately, faile to download file, please try again later.";
+            sendAnswer(error,charId);
+        }
     }
 
     private boolean isNotAllowToSendContent(Long charId, AppUser appUser) {
@@ -84,20 +119,6 @@ public class MainServiceImpl implements MainService {
         return false;
 
     }
-
-    @Override
-    public void processPhotoMessage(Update update) {
-        saveRawData(update);
-        var appUser = findOrSaveAppUser(update);
-        var charId = update.getMessage().getChatId();
-        if (isNotAllowToSendContent(charId, appUser)){
-            return;
-        }
-        // todo add save photo
-        var answer = "Picture download successfully! Link to download : http://test.ru/get-photo/777";
-        sendAnswer(answer,charId);
-    }
-
     private void sendAnswer(String output, Long chatId) {
         SendMessage sendMessage = new SendMessage();
         sendMessage.setChatId(chatId);
@@ -106,12 +127,13 @@ public class MainServiceImpl implements MainService {
     }
 
     private String processServiceCommands(AppUser appUser, String cmd) {
-        if (REGISTRATION.equals(cmd)){
+        var serviceCommand = ServiceCommand.fromValue(cmd);
+        if (REGISTRATION.equals(serviceCommand)){
             //todo add registration
             return "Temporary unavailiable";
-        } else if (HELP.equals(cmd)){
+        } else if (HELP.equals(serviceCommand)){
             return help();
-        } else if (START.equals(cmd)){
+        } else if (START.equals(serviceCommand)){
             return "Hello user, to show available commands plese use /help";
         } else {
             return "Unknown command. Use /help command";
