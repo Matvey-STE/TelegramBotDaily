@@ -13,6 +13,7 @@ import com.matveyvs1987.dao.AppUserDAO;
 
 import com.matveyvs1987.entity.AppUser;
 import com.matveyvs1987.service.ServiceCommand;
+import com.matveyvs1987.service.enums.LinkType;
 import lombok.extern.log4j.Log4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -75,9 +76,9 @@ public class MainServiceImpl implements MainService {
         }
         try{
             AppDocument doc = fileService.processDoc(update.getMessage());
-            // todo add link to file
+            String link = fileService.generateLink(doc.getId(), LinkType.GET_DOC);
             var answer = "Document download successfully! " +
-                    "Link to download : http://test.ru/get-photo/777";
+                    "Link to download : " + link;
             sendAnswer(answer,charId);
         } catch (UploadFileException e){
             log.error(e);
@@ -94,9 +95,9 @@ public class MainServiceImpl implements MainService {
             return;
         }
         try {
-            // todo add link to photo
             AppPhoto photo = fileService.processPhoto(update.getMessage());
-            var answer = "Picture download successfully! Link to download : http://test.ru/get-photo/777";
+            String link = fileService.generateLink(photo.getId(), LinkType.GET_PHOTO);
+            var answer = "Picture download successfully! Link to download : " + link;
             sendAnswer(answer,charId);
         } catch (UploadFileException e){
             log.error(e);
